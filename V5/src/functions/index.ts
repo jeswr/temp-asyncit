@@ -7,3 +7,4 @@ export * from './fromIterator';
 export * from './single';
 export * from './empty';
 export * from './wrap';
+export * from './union';
