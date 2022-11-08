@@ -13,6 +13,7 @@ export type IterableOrNullableSource<T> =
   | IterableSource<T>
   | null
   | undefined
+  | void
   ;
 
 export type MaybePromise<T> = T | Promise<T>;

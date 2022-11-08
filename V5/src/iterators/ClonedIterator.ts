@@ -1,158 +1,147 @@
-import { DESTINATION, ON_PARENT_READABLE } from "../constants";
+import { DESTINATION, ON_PARENT_READABLE, READABLE, ERROR } from "../constants";
+import { emitError, end } from "../emitters";
 import { AsyncIterator } from "./AsyncIterator";
 
+const TRACKERS = Symbol('trackers');
+const HISTORY = Symbol('history');
+// const OFFSET = Symbol('offset');
+const READ_POSITION = Symbol('read_position');
+const SOURCE = Symbol('source')
+
+function onParentReadable<T>(this: History<T>) {
+  // TODO: Proportion this with the number of clones
+  if (this[HISTORY].length >= 256) {
+    // If the history is getting backed up then force the readable event to be emitted in order from most behind
+    // clone to least behind clone
+
+    const clones: ClonedIterator<T>[] = [];
+
+    // We only need to worry about doing it for those trackers that are not currently readable
+    for (const tracker of this[TRACKERS]) {
+      if (!tracker.readable) {
+        clones.push(tracker)
+      }
+    }
+
+    for (const tracker of clones.sort((a, b) => a[READ_POSITION] - b[READ_POSITION])) {
+      tracker.readable = true;
+    }
+
+  } else {
+    for (const tracker of this[TRACKERS])
+      tracker.readable = true;
+  }
+}
+
+// TODO: Create an AsyncIterator.from method
+
 interface History<T> {
-  source: AsyncIterator<T>;
-  history: T[];
-  trackers: Set<ClonedIterator<T>>;
-  offset: number;
+  [SOURCE]: AsyncIterator<T>;
+  [HISTORY]: T[];
+  [TRACKERS]: Set<ClonedIterator<T>>;
+  // [OFFSET]: number;
   [ON_PARENT_READABLE]: () => void;
 }
 
-
-
-// Stores the history of a source, so it can be cloned
-class HistoryReader<T> {
-  private _source: AsyncIterator<T>;
-  // TODO: Use linkedlist here
-  private _history: T[] = [];
-  private _trackers: Set<ClonedIterator<T>> = new Set();
-  private _offset = 0;
-
-  // When the source becomes readable, makes all clones readable
-  [ON_PARENT_READABLE]() {
-    for (const tracker of this._trackers)
-      tracker.readable = true;
+function emitClonedError<T>(this: { [DESTINATION]: History<T> }, error: Error) {
+  // The error
+  for (const tracker of this[DESTINATION][TRACKERS]) {
+    tracker[ERROR] = error;
+    delete tracker[SOURCE];
   }
+  
+  // TODO: Enable this if we want to forward errors synchronously
+  // for (const tracker of this[DESTINATION][TRACKERS])
+  //   tracker.emit('error', error);
+};
+
+
+export class ClonedIterator<T> extends AsyncIterator<T> {
+  [READ_POSITION] = 0;
+  [SOURCE]?: History<T>;
+  [ERROR]?: any;
 
   constructor(source: AsyncIterator<T>) {
-    this._source = source;
+    super();
 
-    // If the source is still live, set up clone tracking;
-    // otherwise, the clones just read from the finished history
-    if (!source.done) {
-      // When the source errors, re-emits the error
-      const emitError = (error: Error) => {
-        for (const tracker of this._trackers)
-          tracker.emit('error', error);
-      };
+    // TODO: See if we need done checks like in the constructor of the history iterator
+
+    if (!source[DESTINATION]) {
+      // @ts-ignore
+      source[DESTINATION] = <History<T>>{
+        [ON_PARENT_READABLE]: onParentReadable,
+        // [OFFSET]: 0,
+        [TRACKERS]: new Set(),
+        [HISTORY]: [],
+        [SOURCE]: source
+      }
 
       // Listen to source events to trigger events in subscribed clones
-      source.on('error', emitError);
+      source.on('error', emitClonedError);
     }
+
+    this[SOURCE] = source[DESTINATION] as any;
+    this[SOURCE]![TRACKERS].add(this);
+    this.readable = source.readable
   }
 
-  // Registers a clone for history updates
-  register(clone: ClonedIterator<T>) {
-    // Tracking is only needed if the source is still live
-    if (!this._source.done)
-      this._trackers.add(clone);
-  }
+  read() {
+    const source = this[SOURCE];
+    let item: T | null = null;
 
-  // Unregisters a clone for history updates
-  unregister(clone: ClonedIterator<T>) {
-    this._trackers.delete(clone);
-  }
+    // We are skipping the done check since we should only enter the done
+    // state when we delete the source
+    if (source) {
+      const pos = this[READ_POSITION];
 
-  // Tries to read the item at the given history position
-  readAt(pos: number) {
-    let item = null;
-    pos -= this._offset;
-    
-    // Retrieve an item from history when available
-    if (pos < this._history.length) {
-      item = this._history[pos];
+      if (pos < source[HISTORY].length) {
+        item = source[HISTORY][pos];
+        this[READ_POSITION] += 1;
 
-      // Clean up old parts of the history
-      if (pos === 256) {
-        // This is based on the truncateThreshold in the ArrayIterator (but made larger due to the overhead of tracker handling)
-        // TODO: See what is done
-        let min = pos;
-        // TODO: See how impactful the cost of set iteration is
-        for (const tracker of this._trackers) {
-          min = Math.min(min, (tracker as any)._readPosition - this._offset)
+        // Clean up old parts of the history
+        // TODO: Ratio this with the number of iterators
+        if (pos === 256) {
+          // This is based on the truncateThreshold in the ArrayIterator (but made larger due to the overhead of tracker handling)
+          // TODO: See what is done
+          let min = Infinity;
+          // TODO: See how impactful the cost of set iteration is
+          for (const tracker of source[TRACKERS]) {
+            min = Math.min(min, tracker[READ_POSITION])
+          }
+
+          if (min > 0) {
+            source[HISTORY] = source[HISTORY].slice(min);
+            for (const tracker of source[TRACKERS]) {
+              tracker[READ_POSITION] -= min;
+            }
+          }
         }
-        
-        if (min > 0) {
-          this._history = this._history.splice(min);
-          this._offset += min;
-        }
+
+      } 
+      else if (!source[SOURCE].done && (item = source[SOURCE].read()) !== null) {
+        // Read a new item from the source when possible
+        source[HISTORY][pos] = item;
+        this[READ_POSITION] += 1;
+      } else if (source[SOURCE].done) {
+        // End the iterator if we are at the end of the source
+        source[TRACKERS].delete(this);
+
+        // TODO: see if we need the following
+        // I don't *think we to because because this should be cleaned up
+        // when the iterator ends
+        // source.off('error', emitError)
+
+        delete this[SOURCE];
+        end.call(this);
+      } else {
+        this[READABLE] = false;
       }
+    } else if (ERROR in this) {
+      emitError.call(this, this[ERROR]);
+      delete this[ERROR];
     }
-    // Read a new item from the source when possible
-    else if (!this._source.done && (item = this._source.read()) !== null)
-      this._history[pos] = item; // TODO: Work out why this is not pushed
-      // TODO: Don't use a history buffer if there is only one iterator
-    
-
+    // TODO: See if we need sync error handling here
 
     return item;
   }
-
-  // Determines whether the given position is the end of the source
-  endsAt(pos: number) {
-    return this._source.done && this._history.length === pos;
-  }
-}
-
-
-
-// TODO: Ensure that the most 'behind' cloned iterator is set as readable first so that it can remove latent elements
-export class ClonedIterator<T> extends AsyncIterator<T> {
-  constructor(private source: AsyncIterator<T>) {
-    super();
-  
-    if (!(DESTINATION in source)) {
-      
-     source[DESTINATION] = {
-        source,
-        // [ON_PARENT_READABLE]
-      }
-    }
-
-    this[DESTINATION] = source[DESTINATION]
-
-    
-  }
-  
-  
-  
-  
-  
-  [ON_PARENT_READABLE]() {
-    this.readable = true;
-  }
-
-  // TODO: Throw an error when clones are registered after the first element has been read (or at least make this)
-  // opt-in
-
-    /* Tries to read an item */
-    read() {
-      const history: History<T> = this[DESTINATION] as any;
-
-      if ()
-
-
-
-
-      // An explicit read kickstarts the source
-      if (!this._sourceStarted)
-        this._sourceStarted = true;
-  
-      const source = this.source as InternalSource<T>;
-      let item = null;
-      if (!this.done && source) {
-        // Try to read an item at the current point in history
-        const history = source[DESTINATION] as any as HistoryReader<T>;
-        if ((item = history.readAt(this._readPosition)) !== null)
-          this._readPosition++;
-        else
-          this.readable = false;
-        // Close the iterator if we are at the end of the source
-        if (history.endsAt(this._readPosition))
-          this.close();
-      }
-      return item;
-    }
-  
 }

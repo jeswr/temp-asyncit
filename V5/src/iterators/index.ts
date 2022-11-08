@@ -5,3 +5,5 @@ export * from './ArrayIterator';
 export * from './EventEmitterIterator';
 export * from './MappingIterator';
 export * from './UnionIterator';
+export * from './PromiseIterator';
+export * from './SingletonIterator';

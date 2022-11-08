@@ -1,6 +1,7 @@
 import { AsyncIterator } from "./AsyncIterator";
 import { addSyncErrorForwardingDestination, removeSyncErrorForwardingDestination } from "../utils";
 import { end } from "../emitters";
+import { ON_PARENT_READABLE } from "../constants";
 
 // TODO: Exploit the fact that we have access to synchronous readable events to go straight to the iterator
 // that emitted readable.
@@ -31,7 +32,8 @@ export class UnionIterator<T> extends AsyncIterator<T> {
     this.readable = source.readable;
   }
 
-  onParentReadable(parent: AsyncIterator<T> | AsyncIterator<AsyncIterator<T>>) {
+  // TODO: Fix this
+  [ON_PARENT_READABLE](parent: AsyncIterator<T> | AsyncIterator<AsyncIterator<T>>) {
     if (parent !== this.source) {
       this.maybeReadable.add(parent as AsyncIterator<T>);
       this.readable = true;
