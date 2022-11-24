@@ -102,6 +102,7 @@ export function queueReadable(iterator: any) {
 
 export function queueItemGeneration(iterator: any) {
   if (iterator[CAN_RUN_ITEM_GENERATION]) {
+    // TODO: Double check this baton logic
     iterator[CAN_RUN_ITEM_GENERATION] = true;
 
     if (ITEM_GENERATION_QUEUE === null) {
@@ -115,6 +116,7 @@ export function queueItemGeneration(iterator: any) {
 
 export function queueDataEmission(iterator: any) {
   if (!iterator[EMIT_DATA_PENDING_OR_RUNNING]) {
+    // TODO: Double check baton logic
     iterator[EMIT_DATA_PENDING_OR_RUNNING] = false;
 
     if (DATA_EMIT_QUEUE === null) {

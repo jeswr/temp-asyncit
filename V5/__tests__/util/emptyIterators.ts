@@ -31,11 +31,14 @@ import { IterableIterator } from '../../src/iterators/IterableIterator';
 type E = [ () => AsyncIterator<never>, string ];
 type ES = E[];
 
-
 const EMPTY_ITERABLES: [ () => Iterable<never>  , string ][] = [
   [function* () { }, 'empty iterable function'],
   [() => [], 'empty array'],
   [() => new Set(), 'empty set'],
+];
+
+const EMPTY_ASYNC_ITERABLES: [ () => AsyncIterable<never>  , string ][] = [
+  [async function* () { }, 'empty async iterable function']
 ];
 
 // TODO: Extend this

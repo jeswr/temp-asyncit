@@ -10,7 +10,7 @@ export class PromiseIterator<T> extends AsyncIterator<T> {
   // TODO: Add tests for when the error is null, undefined etc. (since it can be)
   // this is why we cannot preset the value to null; since we need to do the *in* check
   // to see if it has been set, rather than just checking for null
-  private [ERROR]: any = null;
+  private [ERROR]?: any;
 
   constructor(_source: Promise<IterableOrNullableSource<T>>) {
     super();
@@ -44,7 +44,7 @@ export class PromiseIterator<T> extends AsyncIterator<T> {
         removeSyncErrorForwardingDestination.call(this, source);
         end.call(this);
       }
-    } else if (this[ERROR] !== null) {
+    } else if (ERROR in this) {
       emitError.call(this, this[ERROR]);
       delete this[ERROR];
     }

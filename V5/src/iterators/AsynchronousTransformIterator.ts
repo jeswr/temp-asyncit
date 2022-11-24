@@ -5,10 +5,12 @@
 // import { taskScheduler } from "../taskScheduler";
 // import { AsyncIterator } from "./AsyncIterator";
 
-import { GENERATE_ITEMS, ON_PARENT_READABLE } from "../constants";
+import { CAN_RUN_ITEM_GENERATION, ERROR, GENERATE_ITEMS, ON_PARENT_READABLE } from "../constants";
+import { LinkedList } from "../datatypes/LinkedList";
 import { emitError, end } from "../emitters";
 import { queueItemGeneration } from "../iteratorTask";
 import { addDestination } from "../utils";
+import { AsyncIterator } from './AsyncIterator';
 
 /**
   An iterator that generates items based on a source iterator.
@@ -17,28 +19,21 @@ import { addDestination } from "../utils";
 */
 export class TransformIterator<S, D = S> extends AsyncIterator<D> {
   private buffer: LinkedList<D> = new LinkedList<D>();
-  private canTransform = true;
   private transformScheduled = false;
   private boundPush = (e: D) => this.buffer.push(e);
+  private [ERROR]?: any;
   private next = () => {
     // TODO: Check this
     // console.log('next', this.buffer.length)
 
-    this.canTransform = true;
-    this.readable = this.buffer.length > 0;
+    this.readable ||= this.buffer.length > 0;
 
     if (!this.transformScheduled &&
         this.buffer.length < this.maxBufferSize &&
-        this.pendingError === null &&
+        !(ERROR in this) &&
         this.source.readable
         ) {
-          this.transformScheduled = true;
           queueItemGeneration(this);
-          
-          taskScheduler(() => {
-            this.transformScheduled = false;
-            this.loadItems()
-          });
         }
   };
   private pendingError: any = null;
@@ -57,11 +52,10 @@ export class TransformIterator<S, D = S> extends AsyncIterator<D> {
     source.on('error', destinationSetError);
 
     if (this.preBuffer)
-      this.loadItems();
+      this[GENERATE_ITEMS]();
   }
 
-  [ON_PARENT_READABLE]() {
-    // console.log('readable')
+  private [ON_PARENT_READABLE]() {
     if (this.source.done) {
       this.readable = true;
     } else {
@@ -72,13 +66,14 @@ export class TransformIterator<S, D = S> extends AsyncIterator<D> {
   private [GENERATE_ITEMS]() {
     let item;
     while (
+      this[CAN_RUN_ITEM_GENERATION] &&
       this.buffer.length < this.maxBufferSize &&
       this.pendingError === null &&
       this.source.readable && 
       (item = this.source.read()) !== null
     ) {
       this.transform(item, this.next, this.boundPush);
-      this.readable = this.buffer.length > 0;
+      this.readable ||= this.buffer.length > 0;
     }
   }
 
@@ -88,25 +83,23 @@ export class TransformIterator<S, D = S> extends AsyncIterator<D> {
 
     if (!buffer.empty) {
       item = buffer.shift() as D;
-      this.loadItems();
-      // console.log('returning', item)
+      this[GENERATE_ITEMS]();
       return item;
     } else if (this.source) {
       this.readable = false
-      this.loadItems();
+      this[GENERATE_ITEMS]();
     }
 
-    if (this.pendingError !== null) {
-      emitError.call(this, this.pendingError);
-      this.pendingError = null;
+    if (ERROR in this) {
+      emitError.call(this, this[ERROR]);
+      delete this[ERROR];
     }
 
     if (buffer.empty && this.source.done) {
-      // console.log('emit end called')
-      // TODO: Cleanup
+      // TODO: Cleanup (destroy the buffer and if item generation is currently scheduled)
       end.call(this);
     }
-    // console.log('returning null')
+
     return null;
   }
 }

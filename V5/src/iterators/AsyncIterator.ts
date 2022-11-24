@@ -23,7 +23,7 @@ import { AsyncIteratorBase } from '../types/AsyncIteratorBase';
   An asynchronous iterator provides pull-based access to a stream of objects.
   @extends module:asynciterator.EventEmitter
 */
-export abstract class AsyncIterator<T> extends EventEmitter {
+export abstract class AsyncIterator<T> extends EventEmitter implements globalThis.AsyncIterator<T, T> {
   private [STATE]: number;
 
   // Handling readable status and events
@@ -82,6 +82,7 @@ export abstract class AsyncIterator<T> extends EventEmitter {
     return this[STATE] >= ENDED;
   }
 
+  // TODO: see if we should be using a custom symbol here rather than null
   abstract read(): T | null;
 
   /* Generates a textual representation of the iterator. */
@@ -180,5 +181,31 @@ export abstract class AsyncIterator<T> extends EventEmitter {
     return '';
   }
 
+  async next(...args: [] | [undefined]): Promise<IteratorResult<T, T>> {
+    const arr = await this.toArray({ limit: 1 });
+    if (arr.length === 1)
+      return { value: arr[0] }
+    else
+      return { done: true, value: null }
+  }
+
+
+  // TODO: Implement this so we can just do `Readable.from` in Comunica
+  // when the readable type is needed
+  [Symbol.asyncIterator]() {
+    let nextElem: T | null = null;
+    let err;
+
+    const next = async () => {
+      const arr = await this.toArray({ limit: 1 });
+
+      if (nextElem === null) {
+        n
+      }
+    }
+
+
+    return this;
+  }
   // TODO: Work out how to handle map etc. operations across files
 }
