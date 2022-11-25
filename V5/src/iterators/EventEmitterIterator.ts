@@ -2,28 +2,30 @@ import { addDestination, addSyncErrorForwardingDestination, removeSyncErrorForwa
 import { emitError, end, setReadable } from "../emitters";
 import { AsyncIterator } from "./AsyncIterator";
 import { EventEmitter } from 'events';
-import { DESTINATION } from "../constants";
+import { DESTINATION, ERROR } from "../constants";
 import { AsyncIteratorBase } from "../types/AsyncIteratorBase";
 import { EventEmitterSource } from "../types";
+
+const SOURCE_DONE = Symbol('source_done')
 
 function destinationSetReadable<T>(this: { [DESTINATION]: AsyncIterator<T> }) {
   setReadable.call(this[DESTINATION]);
 }
 
 function destinationSourceDone<T>(this: { [DESTINATION]: EventEmitterIterator<T> }) {
-  this[DESTINATION].sourceDone = true;
+  this[DESTINATION][SOURCE_DONE] = true;
   setReadable.call(this[DESTINATION]);
 }
 
-function destinationSetError<T>(this: { [DESTINATION]: { pendingError: any } & AsyncIteratorBase<T> }, error: any) {
-  this[DESTINATION].pendingError = error;
+function destinationSetError<T>(this: { [DESTINATION]: EventEmitterIterator<T> }, error: any) {
+  this[DESTINATION][ERROR] = error;
   setReadable.call(this[DESTINATION]);
 }
 
 export class EventEmitterIterator<T> extends AsyncIterator<T> {
   // TODO: Make these symbols
-  sourceDone = false;
-  pendingError = null;
+  [SOURCE_DONE] = false;
+  [ERROR]?: any;
 
   constructor(private source: EventEmitterSource<T>) {
     super();
@@ -35,10 +37,11 @@ export class EventEmitterIterator<T> extends AsyncIterator<T> {
   }
 
   read(): T | null {
-    if (this.sourceDone) {
+    if (this[SOURCE_DONE]) {
       end.call(this);
-    } else if (this.pendingError !== null) {
-      emitError.call(this, this.pendingError);
+    } else if (!(ERROR in this)) {
+      emitError.call(this, this[ERROR]);
+      delete this[ERROR];
       // TODO: See if we need to end
     } else if (this.source.readable !== false) {
       const item = this.source.read();

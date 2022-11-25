@@ -9,6 +9,11 @@ export class IterableIterator<T> extends AsyncIterator<T> {
     super();
   }
 
+  destroy() {
+    // @ts-ignore
+    this.source = null;
+  }
+
   read(): T | null {
     let next: IteratorResult<T>;
     while (!(next = this.source.next()).done) {

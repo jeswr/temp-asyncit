@@ -18,12 +18,13 @@ import { setReadable, removeListener, newListener, end } from '../emitters';
 import { MapFunction } from '../types';
 import { AsyncIteratorBase } from '../types/AsyncIteratorBase';
 
+// TODO: Double check that we do not need to be emitting the end event when destroy is called
 
 /**
   An asynchronous iterator provides pull-based access to a stream of objects.
   @extends module:asynciterator.EventEmitter
 */
-export abstract class AsyncIterator<T> extends EventEmitter implements globalThis.AsyncIterator<T, T> {
+export abstract class AsyncIterator<T> extends EventEmitter implements globalThis.AsyncIterable<T> {
   private [STATE]: number;
 
   // Handling readable status and events
@@ -36,7 +37,7 @@ export abstract class AsyncIterator<T> extends EventEmitter implements globalThi
 
   // For optimised chaining of iterators
   private [DESTINATION]?: AsyncIteratorBase<any>;
-  private [ON_PARENT_READABLE]?(parent: AsyncIteratorBase<any>): void;
+  [ON_PARENT_READABLE]?(parent: AsyncIteratorBase<any>): void;
 
   // For iterators with asynchronous item generation
   private [CAN_RUN_ITEM_GENERATION]?: boolean;
@@ -96,7 +97,7 @@ export abstract class AsyncIterator<T> extends EventEmitter implements globalThi
     return new Promise((res, rej) => {
       let items: T[] = [];
       const limit = typeof options?.limit === 'number' ? options.limit : Infinity;
-  
+
       const reject = (reason: any) => {
         delete this[DESTINATION];
         this.off('error', reject);
@@ -153,6 +154,7 @@ export abstract class AsyncIterator<T> extends EventEmitter implements globalThi
     if (!this.done) {
       this._destroy(cause, error => {
         cause = cause || error;
+        // TODO: Make sure that this only is called synchronously
         if (cause)
           this.emit('error', cause);
         // TODO: Make sure cleanup is done here
@@ -181,31 +183,69 @@ export abstract class AsyncIterator<T> extends EventEmitter implements globalThi
     return '';
   }
 
-  async next(...args: [] | [undefined]): Promise<IteratorResult<T, T>> {
-    const arr = await this.toArray({ limit: 1 });
-    if (arr.length === 1)
-      return { value: arr[0] }
-    else
-      return { done: true, value: null }
-  }
+  // async next(...args: [] | [undefined]): Promise<IteratorResult<T, T>> {
+  //   const arr = await this.toArray({ limit: 1 });
+  //   if (arr.length === 1)
+  //     return { value: arr[0] }
+  //   else
+  //     return { done: true, value: null }
+  // }
 
 
   // TODO: Implement this so we can just do `Readable.from` in Comunica
   // when the readable type is needed
-  [Symbol.asyncIterator]() {
-    let nextElem: T | null = null;
-    let err;
-
-    const next = async () => {
-      const arr = await this.toArray({ limit: 1 });
-
-      if (nextElem === null) {
-        n
-      }
+  async *[Symbol.asyncIterator]() {
+    let item: T | null = null;
+    
+    if (DESTINATION in this) {
+      throw new Error('Cannot iterate using "for await" syntax when iterator has another destination');
     }
 
+    const destination = this[DESTINATION] = Object.create(null);
+    const wait = () => new Promise<true>(res => { destination[ON_PARENT_READABLE] = res });
 
-    return this;
+    while (!this.done && (this.readable || (await wait(), true)))
+      while ((item = this.read()) !== null)
+        yield item;
+
+    delete this[DESTINATION];
   }
+
+  // async *[Symbol.asyncIterator]() {
+  //   let item: T | null = null;
+
+  //   const wait = () => new Promise<true>(res => {
+  //     this[DESTINATION] = {
+  //       [ON_PARENT_READABLE]: () => {
+  //         delete this[DESTINATION];
+  //         res(true);
+  //       }
+  //     } as any;
+  //   });
+
+  //   while (!this.done && (this.readable || await wait()))
+  //     while ((item = this.read()) !== null)
+  //       yield item;
+  // }
+
+  // [Symbol.asyncIterator]() {
+  //   let item: T | null = null;
+  //   let err;
+
+  //   const next = () => this.toArray({ limit: 1 })
+
+  //   const self = this;
+
+  // const gen = async function*() {
+  // while ((item = self.read()) !== null) {
+  //   yield item;
+  // }
+  //   }
+
+
+  //   return this;
+  // }
   // TODO: Work out how to handle map etc. operations across files
 }
+
+

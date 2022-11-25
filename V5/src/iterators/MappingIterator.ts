@@ -39,6 +39,14 @@ export class CompositeMappingIterator<S, D = S> extends SynchronousTransformIter
     super(source);
   }
 
+  destroy() {
+    super.destroy();
+    // @ts-ignore
+    this.root = null;
+    // @ts-ignore
+    this.mappings = null;
+  }
+
   safeRead() {
     // TODO: See if this is actually necessary
     // A source should only be read from if readable is true

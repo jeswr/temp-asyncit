@@ -14,63 +14,63 @@ import { arrayToIterable, createIterChecks, LifetimeCheckOptions } from './util/
 // https://github.com/RubenVerborgh/AsyncIterator/blob/main/test/MappingIterator-test.js are applied
 
 describe('UnionIterator', () => {
-  const iterChecks = createIterChecks(UnionIterator as any, 'UnionIterator', '[UnionIterator]');
+  // const iterChecks = createIterChecks(UnionIterator as any, 'UnionIterator', '[UnionIterator]');
 
-  function lifetimeCheck<T>(options: LifetimeCheckOptions<T>) {
-    iterChecks.lifetimeCheck<T>({
-      ...options,
-      postChecks: (iterator) => {
+  // function lifetimeCheck<T>(options: LifetimeCheckOptions<T>) {
+  //   iterChecks.lifetimeCheck<T>({
+  //     ...options,
+  //     postChecks: (iterator) => {
 
-        it('should have an empty buffer', () => {
-          // TODO: Check the name here
-          expect((iterator as any)._buffer).toBeUndefined();
-        });
+  //       it('should have an empty buffer', () => {
+  //         // TODO: Check the name here
+  //         expect((iterator as any)._buffer).toBeUndefined();
+  //       });
 
-        options.postChecks?.(iterator);
-      }
-    })
-  }
+  //       options.postChecks?.(iterator);
+  //     }
+  //   })
+  // }
 
-  iterChecks.allEmptyIterators([
-    [
-      'the result when called with `new` an EmptyIterator source',
-      () => new UnionIterator<never>(empty<never>()),
-    ],
-    [
-      'the result when called with `new` an empty fromArray source',
-      () => new UnionIterator<never>(fromArray([])),
-    ],
-    [
-      'the result when called with `new` a fromArray source containing empty iterators',
-      () => new UnionIterator<never>(fromArray([empty<never>(), empty<never>(), empty<never>()])),
-    ],
-    [
-      'the result when called with `new` a fromArray source containing empty fromArray iterators',
-      () => new UnionIterator<never>(fromArray([fromArray([]), fromArray([]), fromArray([])])),
-    ],
-    [
-      'the result when called with `new` a fromArray source containing empty fromArray iterators and empty iterators',
-      () => new UnionIterator<never>(fromArray([fromArray([]), fromArray([]), empty<never>(), fromArray([])])),
-    ],
-  ])
+  // iterChecks.allEmptyIterators([
+  //   [
+  //     'the result when called with `new` an EmptyIterator source',
+  //     () => new UnionIterator<never>(empty<never>()),
+  //   ],
+  //   [
+  //     'the result when called with `new` an empty fromArray source',
+  //     () => new UnionIterator<never>(fromArray([])),
+  //   ],
+  //   [
+  //     'the result when called with `new` a fromArray source containing empty iterators',
+  //     () => new UnionIterator<never>(fromArray([empty<never>(), empty<never>(), empty<never>()])),
+  //   ],
+  //   [
+  //     'the result when called with `new` a fromArray source containing empty fromArray iterators',
+  //     () => new UnionIterator<never>(fromArray([fromArray([]), fromArray([]), fromArray([])])),
+  //   ],
+  //   [
+  //     'the result when called with `new` a fromArray source containing empty fromArray iterators and empty iterators',
+  //     () => new UnionIterator<never>(fromArray([fromArray([]), fromArray([]), empty<never>(), fromArray([])])),
+  //   ],
+  // ])
 
-  lifetimeCheck({
-    iterator: new UnionIterator(fromArray([ fromArray([1]) ])),
-    startString: '[UnionIterator]',
-    elements: [
-      [1, '[UnionIterator]'],
-    ],
-    testName: 'An UnionIterator with a one-item ArrayIterator source'
-  });
+  // lifetimeCheck({
+  //   iterator: new UnionIterator(fromArray([ fromArray([1]) ])),
+  //   startString: '[UnionIterator]',
+  //   elements: [
+  //     [1, '[UnionIterator]'],
+  //   ],
+  //   testName: 'An UnionIterator with a one-item ArrayIterator source'
+  // });
 
-  lifetimeCheck({
-    iterator: new UnionIterator(fromArray([ empty<never>(), fromArray([1]), fromArray([]) ])),
-    startString: '[UnionIterator]',
-    elements: [
-      [1, '[UnionIterator]'],
-    ],
-    testName: 'An UnionIterator with a one-item ArrayIterator source amongst empty iterators'
-  });
+  // lifetimeCheck({
+  //   iterator: new UnionIterator(fromArray([ empty<never>(), fromArray([1]), fromArray([]) ])),
+  //   startString: '[UnionIterator]',
+  //   elements: [
+  //     [1, '[UnionIterator]'],
+  //   ],
+  //   testName: 'An UnionIterator with a one-item ArrayIterator source amongst empty iterators'
+  // });
 
   // // TODO: Properly name
   // describe.each([

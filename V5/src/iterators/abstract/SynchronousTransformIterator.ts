@@ -26,11 +26,22 @@ export abstract class SynchronousTransformIterator<S, D = S> extends AsyncIterat
 
     // In synchronous transformations we assume that .read() on super classes are only made at the same time
     // as the current read call and hence it is safe to forward the error immediately.
+    
+    // TODO: See if there are cases where we need to make sure the iterator or source is not done 
+    // (for instance if the source has been destroyed)
+
     addSyncErrorForwardingDestination.call(this, source);
     this.readable = source.readable;
   }
 
   protected abstract safeRead(): D | null;
+
+  destroy() {
+    removeSyncErrorForwardingDestination(this.source);
+    this.source.destroy();
+    // @ts-ignore
+    this.source = null;
+  }
 
   /* Tries to read the next item from the iterator. */
   read(): D | null {

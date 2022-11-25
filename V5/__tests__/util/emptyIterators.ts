@@ -44,6 +44,9 @@ const EMPTY_ASYNC_ITERABLES: [ () => AsyncIterable<never>  , string ][] = [
 // TODO: Extend this
 const EMPTY_ITERATORS: [ () => Iterator<never>  , string ][] = [
   [function* () { }, 'empty iterator function'],
+  [() => ({ next: () => ({ done: true, value: null }) }), 'custom iterator returning null'],
+  [() => ({ next: () => ({ done: true, value: undefined }) }), 'custom iterator returning undefined'],
+  [() => ({ next: () => ({ done: true, value: true }) }), 'custom iterator returning true'],
 ];
 
 const EMPTY_NOTHINGS: [ () => void | null | undefined , string ][] = [
@@ -92,7 +95,8 @@ const WRAPPED_EMPTY_PROMISES: ES = [
 
 const WRAPPED_EMPTY_ITERABLES = [
   ...EMPTY_ITERABLES.map<E>(([ f, str ]) => [ () => fromIterable(f()), str ]),
-  ...EMPTY_ITERABLES.map<E>(([ f, str ]) => [ () => new IterableIterator(f()), str ]),
+  ...EMPTY_ITERABLES.map<E>(([ f, str ]) => [ () => fromIterator(f()[Symbol.iterator]()), str ]),
+  ...EMPTY_ITERABLES.map<E>(([ f, str ]) => [ () => new IterableIterator(f()[Symbol.iterator]()), str ]),
 ]
 
 EMPTY_BASES.map(([ f, str ]) => [  ])

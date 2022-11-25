@@ -6,6 +6,7 @@ import { IterableOrNullableSource } from "../types";
 import { ERROR } from "../constants";
 
 export class PromiseIterator<T> extends AsyncIterator<T> {
+  // TODO: Make the source entry a symbol
   private source: AsyncIterator<T> | null = null;
   // TODO: Add tests for when the error is null, undefined etc. (since it can be)
   // this is why we cannot preset the value to null; since we need to do the *in* check
@@ -16,13 +17,30 @@ export class PromiseIterator<T> extends AsyncIterator<T> {
     super();
     _source.then(resolved => {
       // TODO: Make source a symbol rather than a named property
-      const source = this.source = wrap(resolved);
-      addSyncErrorForwardingDestination.call(this, source);
-      this.readable = source.readable;
+      if (!this.done) {
+        const source = this.source = wrap(resolved);
+        addSyncErrorForwardingDestination.call(this, source);
+        this.readable = source.readable;
+      } else if ((resolved as any)?.destroy === 'function') {
+        (resolved as any)?.destroy();
+      }
     }).catch(err => {
-      this[ERROR] = err;
-      this.readable = true;
+      if (!this.done) {
+        // Only create error and emit readable if we have not already
+        // destroyed the iterator
+        this[ERROR] = err;
+        this.readable = true;
+      }
     });
+  }
+
+  destroy() {
+    const { source } = this;
+    if (source !== null) {
+      source.destroy();
+      removeSyncErrorForwardingDestination.call(this, source);
+      this.source = null;
+    }
   }
 
   read(): T | null {

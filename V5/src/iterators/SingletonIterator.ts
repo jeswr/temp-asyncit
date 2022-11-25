@@ -27,4 +27,8 @@ export class SingletonIterator<T> extends AsyncIterator<T> {
 
     return item;
   }
+
+  destroy() {
+    this.item = null;
+  }
 }

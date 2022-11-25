@@ -185,6 +185,16 @@ export function createIterChecks(cls: typeof AsyncIterator, name: string, emptyS
   function emptyIteratorsCheck(getIter: () => AsyncIterator<any>, endString?: string | undefined) {
     instanceChecks(getIter());
     lifetimeCheck({ iterator: getIter(), endString });
+
+    it('should not iterate through any elements when using the for await syntax', async () => {
+      const elems = [];
+
+      for await (const e of getIter()) {
+        elems.push(e);
+      }
+
+      expect(elems).toEqual([])
+    });
   }
 
   function allEmptyIterators(cases: ([string, () => AsyncIterator<any>, string] | [string, () => AsyncIterator<any>])[]) {
@@ -257,7 +267,86 @@ export function createIterChecks(cls: typeof AsyncIterator, name: string, emptyS
           await limitCheck(6, 8); // TODO: Checks this
         });
       });
+    });
+  }
 
+  function errorChecks<T>(params: {
+    getIterator: () => AsyncIterator<T>;
+    err: string | RegExp | Error | jest.Constructable | undefined
+  }) {
+    describe('erroring checks', () => {
+      beforeEach(() => {
+        setIterator(params.getIterator())
+      });
+
+      it('should error on read if there are no listeners on the end event', async () => {
+        if (!iterator.readable) {
+          await new Promise((res) => { iterator.once('readable', res) })
+        }
+
+        expect(() => iterator.read()).toThrowError(params.err);
+      });
+
+      it('should emit the error event on read if the error event is subscribed', async () => {
+        let err;
+
+        iterator.on('error', (e) => {
+          err = e;
+        });
+        
+        if (!iterator.readable) {
+          await new Promise((res) => { iterator.once('readable', res) })
+        }
+
+        expect(err).toBeUndefined();
+        expect(iterator.read()).toEqual(null);
+        expect(err).toEqual(params.err);
+      });
+
+      it('should emit the error event if the error event is subscribed before putting into flow mode', async () => {
+        let err;
+
+        await new Promise<void>((res) => {
+          iterator.on('error', (e) => {
+            err = e;
+            res();
+          });
+          iterator.on('data', () => {});
+        })
+
+        expect(err).toEqual(params.err);
+      });
+
+      it('should emit the error event on read if the error event is subscribed with once', async () => {
+        let err;
+
+        iterator.once('error', (e) => {
+          err = e;
+        });
+        
+        if (!iterator.readable) {
+          await new Promise((res) => { iterator.once('readable', res) })
+        }
+
+        expect(err).toBeUndefined();
+        expect(iterator.read()).toEqual(null);
+        expect(err).toEqual(params.err);
+      });
+
+      it('should emit the error event if the error event is subscribed with once before putting into flow mode', 
+      async () => {
+        let err;
+
+        await new Promise<void>((res) => {
+          iterator.once('error', (e) => {
+            err = e;
+            res();
+          });
+          iterator.on('data', () => {});
+        })
+
+        expect(err).toEqual(params.err);
+      });
     });
   }
 
@@ -278,6 +367,7 @@ export function createIterChecks(cls: typeof AsyncIterator, name: string, emptyS
     emptyIteratorsCheck,
     lifetimeCheck,
     allEmptyIterators,
-    toArrayChecks
+    toArrayChecks,
+    errorChecks
   }
 }
