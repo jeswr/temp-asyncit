@@ -51,6 +51,9 @@ export function iteratorTask() {
     for (i = 0; i < _DATA_EMIT_QUEUE!.length; i++) {
       it = _DATA_EMIT_QUEUE![i];
 
+      // Check the iterator is still readable as elements
+      // may have been consumed since scheduling the readable
+      // event.
       if (it[READABLE])
         emitData(it);
       else
@@ -70,7 +73,6 @@ export function iteratorTask() {
     }
     _READABLE_QUEUE = null;
   }
-
 
   // Unschedule iterator task so that it can be rescheduled
   if (READABLE_QUEUE === null && DATA_EMIT_QUEUE === null && ITEM_GENERATION_QUEUE === null) {
