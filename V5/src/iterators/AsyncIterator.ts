@@ -25,23 +25,23 @@ import { AsyncIteratorBase } from '../types/AsyncIteratorBase';
   @extends module:asynciterator.EventEmitter
 */
 export abstract class AsyncIterator<T> extends EventEmitter implements globalThis.AsyncIterable<T> {
-  private [STATE]: number;
+  protected [STATE]: number;
 
   // Handling readable status and events
   protected [READABLE]: boolean = false;
-  private [CAN_EMIT_READABLE]: boolean = true;
+  protected [CAN_EMIT_READABLE]: boolean = true;
 
   // Handling flowing mode
-  private [FLOWING]: boolean = false;
-  private [EMIT_DATA_PENDING_OR_RUNNING]: boolean = false;
+  protected [FLOWING]: boolean = false;
+  protected [EMIT_DATA_PENDING_OR_RUNNING]: boolean = false;
 
   // For optimised chaining of iterators
-  private [DESTINATION]?: AsyncIteratorBase<any>;
-  [ON_PARENT_READABLE]?(parent: AsyncIteratorBase<any>): void;
+  protected [DESTINATION]?: AsyncIteratorBase<any>;
+  protected [ON_PARENT_READABLE]?(parent: AsyncIteratorBase<any>): void;
 
   // For iterators with asynchronous item generation
-  private [CAN_RUN_ITEM_GENERATION]?: boolean;
-  private [GENERATE_ITEMS]?: () => void;
+  protected [CAN_RUN_ITEM_GENERATION]?: boolean;
+  protected [GENERATE_ITEMS]?(): void;
 
   // For attaching metadata to iterators
   private [PROPERTIES]?: { [name: string]: any };

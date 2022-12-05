@@ -9,7 +9,7 @@ import { CAN_RUN_ITEM_GENERATION, ERROR, GENERATE_ITEMS, ON_PARENT_READABLE } fr
 import { LinkedList } from "../datatypes/LinkedList";
 import { emitError, end } from "../emitters";
 import { queueItemGeneration } from "../iteratorTask";
-import { addDestination } from "../utils";
+import { addAsyncErrorForwardingDestination, addDestination, destinationSetError, removeAsyncErrorForwardingDestination } from "../utils";
 import { AsyncIterator } from './AsyncIterator';
 
 /**
@@ -45,17 +45,19 @@ export class TransformIterator<S, D = S> extends AsyncIterator<D> {
     private preBuffer = true,
   ) {
     super();
+    addAsyncErrorForwardingDestination.call(this, source)
+    
     // Add this as a destination of the source iterator
-    addDestination.call(this, source);
+    // addDestination.call(this, source);
 
     // Set pendingError on an error event
-    source.on('error', destinationSetError);
+    // source.on('error', destinationSetError);
 
     if (this.preBuffer)
       this[GENERATE_ITEMS]();
   }
 
-  private [ON_PARENT_READABLE]() {
+  protected [ON_PARENT_READABLE]() {
     if (this.source.done) {
       this.readable = true;
     } else {
@@ -63,7 +65,7 @@ export class TransformIterator<S, D = S> extends AsyncIterator<D> {
     }
   }
 
-  private [GENERATE_ITEMS]() {
+  protected [GENERATE_ITEMS]() {
     let item;
     while (
       this[CAN_RUN_ITEM_GENERATION] &&
@@ -81,22 +83,25 @@ export class TransformIterator<S, D = S> extends AsyncIterator<D> {
     const { buffer } = this;
     let item: D | null = null;
 
-    if (!buffer.empty) {
-      item = buffer.shift() as D;
-      this[GENERATE_ITEMS]();
-      return item;
-    } else if (this.source) {
-      this.readable = false
-      this[GENERATE_ITEMS]();
-    }
-
     if (ERROR in this) {
       emitError.call(this, this[ERROR]);
       delete this[ERROR];
     }
 
+    if (!buffer.empty) {
+      item = buffer.shift() as D;
+      this[GENERATE_ITEMS]();
+      return item;
+    } else if (this.source) {
+      // TODO: See if there is a way of setting readable=false when
+      // when we get the last element out of the buffer.
+      this.readable = false
+      this[GENERATE_ITEMS]();
+    }
+
     if (buffer.empty && this.source.done) {
       // TODO: Cleanup (destroy the buffer and if item generation is currently scheduled)
+      removeAsyncErrorForwardingDestination.call(this, this.source);
       end.call(this);
     }
 
