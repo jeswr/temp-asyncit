@@ -22,6 +22,8 @@ export class PromiseIterator<T> extends AsyncIterator<T> {
         addSyncErrorForwardingDestination.call(this, source);
         this.readable = source.readable;
       } else if ((resolved as any)?.destroy === 'function') {
+        // Handle the case where the `PromiseIterator` is destroyed
+        // *before* the promise has resolved.
         (resolved as any)?.destroy();
       }
     }).catch(err => {
@@ -59,10 +61,14 @@ export class PromiseIterator<T> extends AsyncIterator<T> {
   
       if (source.done) {
         // TODO: See if this needs to be called after the end event
+        // TODO: Create a general cleanup function that can be shared
         removeSyncErrorForwardingDestination.call(this, source);
+        this.source = null;
         end.call(this);
       }
     } else if (ERROR in this) {
+      // In most iterators pending errors need to be the first thing
+      // checked since 
       emitError.call(this, this[ERROR]);
       delete this[ERROR];
     }

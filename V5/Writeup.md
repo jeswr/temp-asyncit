@@ -9,6 +9,14 @@ We have 3 queues for the custom scheduler - the:
   - `ITEM_GENERATION_QUEUE` which is used to trigger asynchronous item generation tasks;
   - `DATA_EMIT_QUEUE` a queue of iterators that have just been switched into flowing mode and needed to wait a tick before starting.
 
+### sync vs. async scheduling
+
+We have introduced the ability to perform scheduling synchronously *or* asynchronously. 
+
+The async scheduling mechanism should be used if the iterator is going to be used in situations where don't want the main event loop to be blocked (for instance when the iterator is in the main process in the browser, and we don't want it to block rendering). It gives up control to the main event loop regularly so that rendering can continue.
+
+The sync scheduling mechanism should be used in cases where it is ok to block. A good example of this is if we have a high performance query engine running in a WebWorker.
+
 ## The readable event:
 We emit readable events:
  - The tick after an iterable becomes readable (so long as it is still readable after that tick); and at least one `readable` listener was available.
@@ -29,6 +37,9 @@ For the most part we try to ensure that errors occur during a *read* call; this 
 The *one* case in which we cannot enforce this assumption is when the downstream user calls `.emit('error')` themselves (though I was tempted to introduce the notion of a pending state here to; it creates too much extra overhead in `.read()` calls to check for pending errors on every synchronous transformations; especially in the case of the `CompositeMapping` iterator).
 For the most part I would suggest that consumers *avoid* using `emit("error", ...)` themselves where possible, however, this is already a fairly common pattern in Comunica https://github.com/comunica/comunica/search?q=%27emit%28%22error%22%2C%27&type=.
 As far as I can tell the erroring behavior won't be worse in these cases than it was before either - we can just have very slick erroring behavior if consumers avoid doing this.
+
+
+The remaining question here (cc @rubensworks) is whether this behavior of delaying the error (noting that the error will still be called *before* the iterator emits another element)
 
 
 ## Destruction
@@ -86,5 +97,20 @@ I honestly think we need to enable *both* as the former is more peformant; but r
 
 **SECOND NOTE: This becomes even more gnarly in the case of iterators with asynchronous item generation since we probably want to destroy all elements in the buffer; but not any more. Really this should call for a custom `TransformIterator` in the case of iterators that generate other iterators.
 
+## Destruction Continued
+
+Something that I *have not checked* for bugs associated with early destruction. For instance a nasty one I found recently is that if the `PromiseIterator` is destroyed before the promise is resolved, then the `PromiseIterator` will not destroy its parent if the promise has not yet resolved
+
+## Cloning
+
+<!-- TODO: Introduce a mechanism to pause cleanup - we should also wait a full tick after the first clone is subscribed before allowing cleanup to take place to give enough time for all clones to subscribe -->
+Previously clones kept all past elements in memory; we have introduced a cleanup mechanism which tries to cleanup elements after they have been read by all cloned iterators.
+
+The caveat of this approach is that we cannot keep cloning after iterators have started to read from the source.
+
+## `UnionIterator`
+
+The union iterator is now an iterator that synchronously transforms elements (in particular it does not buffer elements). Now instead it has a set of iterators that are in a `readable` state; iterates through them on a `.read()` call to find the first element that is readable.
 
 
+For now this does tend to 

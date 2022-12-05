@@ -1,6 +1,6 @@
 import { AsyncIterator } from "./AsyncIterator";
 import { addSyncErrorForwardingDestination, emitErrorDestination, removeSyncErrorForwardingDestination } from "../utils";
-import { emitError, end } from "../emitters";
+import { end } from "../emitters";
 import { ERROR, GENERATE_ITEMS, ON_PARENT_READABLE } from "../constants";
 import { AsyncIteratorBase } from "../types/AsyncIteratorBase";
 
@@ -13,8 +13,6 @@ function setPendingError<T>(this: UnionIterator<T>, error: any) {
   this[ERROR] = error;
 }
 
-
-// TODO: Bring over performance work from from https://github.com/RubenVerborgh/AsyncIterator/pull/81/files
 /**
   An iterator that generates items by reading from multiple other iterators.
   @extends module:asynciterator.AsyncIterator
@@ -24,17 +22,17 @@ export class UnionIterator<T> extends AsyncIterator<T> {
   private live: Set<AsyncIterator<T>> = new Set();
   protected source?: AsyncIterator<AsyncIterator<T>>;
   private [ERROR]?: any;
-
+  
   /**
    * Applies the given mapping to the source iterator.
    */
-  constructor(
+   constructor(
     source: AsyncIterator<AsyncIterator<T>> | AsyncIterator<T>[],
     private maxParallelIterators: number = Infinity,
-    private preBuffer = true,
+    private preBuffer = false,
   ) {
     super();
-
+    
     if (Array.isArray(source)) {
       this.live = new Set(source);
 
@@ -44,28 +42,45 @@ export class UnionIterator<T> extends AsyncIterator<T> {
         }
       }
 
-      this.readable = 
-        // Set to readable when there are elements to read
-        (this.maybeReadable.size > 0) ||
-        // Also make sure we set to readable if the iterator is empty
-        (this.live.size === 0);
-
+      this.readable = this.maybeReadable.size > 0;
     } else {
-      // TODO: See if we need this
-      // I don't think we do if we can assume the source is an asynciterator
-      // ensureSourceAvailable(source);
+    // TODO: See if we need this
+    // I don't think we do if we can assume the source is an asynciterator
+    // ensureSourceAvailable(source);
 
-      // In synchronous transformations we assume that .read() on super classes are only made at the same time
-      // as the current read call and hence it is safe to forward the error immediately.
-      addSyncErrorForwardingDestination.call(this, source);
+    // In synchronous transformations we assume that .read() on super classes are only made at the same time
+    // as the current read call and hence it is safe to forward the error immediately.
+    addSyncErrorForwardingDestination.call(this, source);
 
-      // We pre-buffer by default so that we only emit the readable event
-      // when there is *actually* an element to read.
-      if (preBuffer) {
-        this.buffer();
-      } else {
-        this.readable = true;
+    // TODO: Add a prebuffering mechanism here where we check
+    if (preBuffer) {
+    // Note - the main caveat is in this case is that we cannot do sync error forwarding, instead what we need to do
+    // is store the error as pending until we are prepared to handle it
+    let iterator;
+
+    source.off('error', emitErrorDestination);
+    source.on('error', setPendingError)
+    while (this.live.size < maxParallelIterators && source.readable && (iterator = source.read()) !== null) {
+      // TODO: Re-enable this
+      // if (iterator.ending) {
+      //   // This is just triggering the iterator to end
+      //   // by convention it should only emit null, and not emit errors when in this ending state
+      //   iterator.read();
+      // } else 
+      if (!iterator.done) {
+        addSyncErrorForwardingDestination.call(this, iterator);
+        this.live.add(iterator);
+
+        if (iterator.readable) {
+          this.maybeReadable.add(iterator);
+          this.readable = true;
+          return;
+        }
+        }
       }
+      source.off('error', setPendingError)
+      source.on('error', emitErrorDestination);
+    }
     }
   }
 
@@ -73,39 +88,36 @@ export class UnionIterator<T> extends AsyncIterator<T> {
   private buffer() {
     const { source, maxParallelIterators } = this;
 
-    if (source) {
-      let iterator;
-      source.off('error', emitErrorDestination);
-      source.on('error', setPendingError);
-      while (this.live.size < maxParallelIterators && source.readable && (iterator = source.read()) !== null) {
-        // TODO: Re-enable this once we have ending states working
-        // if (iterator.ending) {
-        //   // This is just triggering the iterator to end
-        //   // by convention it should only emit null, and not emit errors when in this ending state
-        //   iterator.read();
-        // } else 
-        if (!iterator.done) {
-          addSyncErrorForwardingDestination.call(this, iterator);
-          this.live.add(iterator);
-  
-          if (iterator.readable) {
-            this.maybeReadable.add(iterator);
-            this.readable = true;
-            return;
-          }
+    if (!source)
+      return;
+
+    let iterator;
+    source.off('error', emitErrorDestination);
+    source.on('error', setPendingError)
+    while (this.live.size < maxParallelIterators && source.readable && (iterator = source.read()) !== null) {
+      // TODO: Re-enable this once we have ending states working
+      // if (iterator.ending) {
+      //   // This is just triggering the iterator to end
+      //   // by convention it should only emit null, and not emit errors when in this ending state
+      //   iterator.read();
+      // } else 
+      if (!iterator.done) {
+        addSyncErrorForwardingDestination.call(this, iterator);
+        this.live.add(iterator);
+
+        if (iterator.readable) {
+          this.maybeReadable.add(iterator);
+          this.readable = true;
+          return;
+        }
         }
       }
-      source.off('error', setPendingError);
+      source.off('error', setPendingError)
       source.on('error', emitErrorDestination);
-    }
-
-    // Make sure the iterator is readable if it is ending
-    if (this.live.size === 0 && (!source || source.done) && !this.done)
-      this.readable = true;
   }
 
   // private [GENERATE_ITEMS]() {
-
+    
   // }
 
   // TODO: Fix this by adding AsyncIterator<T> | AsyncIterator<AsyncIterator<T>>
@@ -121,11 +133,8 @@ export class UnionIterator<T> extends AsyncIterator<T> {
 
       this.maybeReadable.add(parent as any);
       this.readable = true;
-    } else if (this.live.size < this.maxParallelIterators && !this.readable) {
-      // I was going to say that there should be a check here to make sure that
-      // we are not buffering before starting but the !this.readable should be
-      // taking care of that
-      this.buffer();
+    } else if (this.live.size < this.maxParallelIterators) {
+      this.readable = true;
     }
   }
 
@@ -137,15 +146,8 @@ export class UnionIterator<T> extends AsyncIterator<T> {
     let item: | T | null = null;
     let iterator: AsyncIterator<T> | null;
 
-    // TODO: Refactor this into a utility function for *all* iterators that have to handle
-    // errors like this
-    // TODO: See if we should be emitting null on erroring cases (I don't *think* we should but it is also worht checking)
-    if (ERROR in this) {
-      emitError.call(this, this[ERROR]);
-      delete this[ERROR];
-    }
-
     // TODO: add an if ERROR in this check here
+
     // TODO: Investigate the performance impact of sets
     for (iterator of maybeReadable) {
       if (iterator.readable && (item = iterator.read()) !== null)
@@ -171,10 +173,8 @@ export class UnionIterator<T> extends AsyncIterator<T> {
         }
 
         return item;
-      }
-
-      // Note we do *not* need a `.ending` case here as we are already
-      // calling `.read()`
+      } 
+      
       if (iterator.done)
         removeSyncErrorForwardingDestination(iterator);
       else
@@ -190,7 +190,7 @@ export class UnionIterator<T> extends AsyncIterator<T> {
   }
 
 
-  // TODO: Do not forward the cause!! (I think)
+  // TODO: Do not forward the cause!!
   destroy(cause?: Error | undefined) {
     super.destroy(cause);
 
