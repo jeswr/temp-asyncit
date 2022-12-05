@@ -31,7 +31,8 @@ export class UnionIterator<T> extends AsyncIterator<T> {
   constructor(
     source: AsyncIterator<AsyncIterator<T>> | AsyncIterator<T>[],
     private maxParallelIterators: number = Infinity,
-    private preBuffer = true,
+    preBuffer = true,
+    private destroyUnusedIterators = false,
   ) {
     super();
 
@@ -192,13 +193,13 @@ export class UnionIterator<T> extends AsyncIterator<T> {
 
   // TODO: Do not forward the cause!! (I think)
   destroy(cause?: Error | undefined) {
-    super.destroy(cause);
+    super.destroy();
 
     // TODO: Cleanup by destroying .live .readable etc.
     // Note - for now we have removed the destroy sources
     // option entirely and we are just doing it automatically
     for (const source of this.live) {
-      source.destroy(cause);
+      source.destroy();
     }
 
     // Destroy the original source
@@ -206,6 +207,24 @@ export class UnionIterator<T> extends AsyncIterator<T> {
     // any remaining elements in the source unless
     // we have a specialised way of doing that in
     // the source iterator
-    this.source?.destroy(cause);
+
+    if (this.destroyUnusedIterators) {
+      this.source?.on('data', iterator => {
+        iterator.destroy();
+      });
+  
+      this.source?.on('end', () => {
+        super.destroy();
+      })
+    } else {
+      this.source?.destroy();
+    }
+
+    delete this.source;
+
+    // @ts-ignore
+    delete this.live;
+    // @ts-ignore
+    delete this.maybeReadable;
   }
 }

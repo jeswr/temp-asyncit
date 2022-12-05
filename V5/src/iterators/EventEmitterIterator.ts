@@ -1,26 +1,24 @@
-import { addDestination, addSyncErrorForwardingDestination, removeSyncErrorForwardingDestination } from "../utils/addDestination";
+import { addAsyncErrorForwardingDestination, addDestination, addSyncErrorForwardingDestination, destinationSetError, destinationSetReadable, destinationSourceDone, removeSyncErrorForwardingDestination } from "../utils/addDestination";
 import { emitError, end, setReadable } from "../emitters";
 import { AsyncIterator } from "./AsyncIterator";
 import { EventEmitter } from 'events';
-import { DESTINATION, ERROR } from "../constants";
+import { DESTINATION, ERROR, SOURCE_DONE } from "../constants";
 import { AsyncIteratorBase } from "../types/AsyncIteratorBase";
 import { EventEmitterSource } from "../types";
 
-const SOURCE_DONE = Symbol('source_done')
+// function destinationSetReadable<T>(this: { [DESTINATION]: AsyncIterator<T> }) {
+//   setReadable.call(this[DESTINATION]);
+// }
 
-function destinationSetReadable<T>(this: { [DESTINATION]: AsyncIterator<T> }) {
-  setReadable.call(this[DESTINATION]);
-}
+// function destinationSourceDone<T>(this: { [DESTINATION]: EventEmitterIterator<T> }) {
+//   this[DESTINATION][SOURCE_DONE] = true;
+//   setReadable.call(this[DESTINATION]);
+// }
 
-function destinationSourceDone<T>(this: { [DESTINATION]: EventEmitterIterator<T> }) {
-  this[DESTINATION][SOURCE_DONE] = true;
-  setReadable.call(this[DESTINATION]);
-}
-
-function destinationSetError<T>(this: { [DESTINATION]: EventEmitterIterator<T> }, error: any) {
-  this[DESTINATION][ERROR] = error;
-  setReadable.call(this[DESTINATION]);
-}
+// function destinationSetError<T>(this: { [DESTINATION]: EventEmitterIterator<T> }, error: any) {
+//   this[DESTINATION][ERROR] = error;
+//   setReadable.call(this[DESTINATION]);
+// }
 
 export class EventEmitterIterator<T> extends AsyncIterator<T> {
   // TODO: Make these symbols
@@ -29,10 +27,11 @@ export class EventEmitterIterator<T> extends AsyncIterator<T> {
 
   constructor(private source: EventEmitterSource<T>) {
     super();
-    this.source = source;
-    addDestination.call(this, source);
+    // TODO: Make sure to removeAsyncErrorForwardingDestination
+    addAsyncErrorForwardingDestination.call(this, source);
     source.on('end', destinationSourceDone);
-    source.on('error', destinationSetError);
+    // *note* we cannot use the ON_PARENT_READABLE trick here since the
+    // source is *not* an asynciterator from this library
     source.on('readable', destinationSetReadable);
   }
 

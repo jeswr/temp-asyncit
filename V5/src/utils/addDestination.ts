@@ -1,5 +1,6 @@
-import { DESTINATION } from '../constants';
-import { emitError } from '../emitters';
+import { DESTINATION, ERROR, SOURCE_DONE } from '../constants';
+import { emitError, setReadable } from '../emitters';
+import { EventEmitterIterator } from '../iterators';
 
 export interface MinimalSource<T> {
   [DESTINATION]?: any;
@@ -19,7 +20,6 @@ export function emitErrorDestination<T>(this: any, error: any) {
 }
 
 export function addSyncErrorForwardingDestination<T, K>(this: any, source: any) {
-  // TODO: See if these need to be "emit error destination"
   source.on('error', emitErrorDestination);
   addDestination.call(this, source);
 }
@@ -27,4 +27,28 @@ export function addSyncErrorForwardingDestination<T, K>(this: any, source: any) 
 export function removeSyncErrorForwardingDestination<T, K>(source: any) {
   source.off('error', emitErrorDestination);
   delete source[DESTINATION];
+}
+
+export function addAsyncErrorForwardingDestination<T, K>(this: any, source: any) {
+  source.on('error', destinationSetError);
+  addDestination.call(this, source);
+}
+
+export function removeAsyncErrorForwardingDestination<T, K>(source: any) {
+  source.off('error', destinationSetError);
+  delete source[DESTINATION];
+}
+
+export function destinationSetReadable<T>(this: { [DESTINATION]: AsyncIterator<T> }) {
+  setReadable.call(this[DESTINATION]);
+}
+
+export function destinationSourceDone<T>(this: { [DESTINATION]: EventEmitterIterator<T> }) {
+  this[DESTINATION][SOURCE_DONE] = true;
+  setReadable.call(this[DESTINATION]);
+}
+
+export function destinationSetError<T>(this: { [DESTINATION]: EventEmitterIterator<T> }, error: any) {
+  this[DESTINATION][ERROR] = error;
+  setReadable.call(this[DESTINATION]);
 }

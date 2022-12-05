@@ -28,6 +28,9 @@ export const CAN_RUN_ITEM_GENERATION = Symbol('schedule');
 /** @internal Run item generation on the iterator */
 export const GENERATE_ITEMS = Symbol('generate');
 
+/** @internal If the source of an iterator is done */
+export const SOURCE_DONE = Symbol('source_done')
+
 /** @internal */
 export const PROPERTIES = Symbol('properties');
 
