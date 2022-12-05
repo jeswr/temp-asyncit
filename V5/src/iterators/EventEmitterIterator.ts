@@ -6,20 +6,6 @@ import { DESTINATION, ERROR, SOURCE_DONE } from "../constants";
 import { AsyncIteratorBase } from "../types/AsyncIteratorBase";
 import { EventEmitterSource } from "../types";
 
-// function destinationSetReadable<T>(this: { [DESTINATION]: AsyncIterator<T> }) {
-//   setReadable.call(this[DESTINATION]);
-// }
-
-// function destinationSourceDone<T>(this: { [DESTINATION]: EventEmitterIterator<T> }) {
-//   this[DESTINATION][SOURCE_DONE] = true;
-//   setReadable.call(this[DESTINATION]);
-// }
-
-// function destinationSetError<T>(this: { [DESTINATION]: EventEmitterIterator<T> }, error: any) {
-//   this[DESTINATION][ERROR] = error;
-//   setReadable.call(this[DESTINATION]);
-// }
-
 export class EventEmitterIterator<T> extends AsyncIterator<T> {
   // TODO: Make these symbols
   [SOURCE_DONE] = false;
@@ -37,6 +23,7 @@ export class EventEmitterIterator<T> extends AsyncIterator<T> {
 
   read(): T | null {
     if (this[SOURCE_DONE]) {
+      // TODO: Make sure to handle cleanup here
       end.call(this);
     } else if (!(ERROR in this)) {
       emitError.call(this, this[ERROR]);
