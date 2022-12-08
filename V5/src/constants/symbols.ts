@@ -7,6 +7,9 @@ export const DESTINATION = Symbol('destination');
 /** @internal Key for function that is invoked when a parent iterator is made readable */
 export const ON_PARENT_READABLE = Symbol('on_parent_readable');
 
+/** @internal Key for a function that is invoked when the parent iterator is ENDING */
+export const ON_PARENT_ENDING = Symbol('on_parent_ending')
+
 /** @internal Boolean for whether an iterator is in flowing mode */
 export const FLOWING = Symbol('flowing')
 

@@ -1,5 +1,5 @@
-import { ON_PARENT_READABLE } from '../../constants';
-import { end, setReadable } from '../../emitters';
+import { ON_PARENT_ENDING, ON_PARENT_READABLE, STATE } from '../../constants';
+import { end, ending, setReadable } from '../../emitters';
 import { addSyncErrorForwardingDestination, removeSyncErrorForwardingDestination } from '../../utils';
 import { AsyncIterator } from '../AsyncIterator';
 
@@ -12,6 +12,10 @@ export abstract class SynchronousTransformIterator<S, D = S> extends AsyncIterat
   // TODO: See if we don't need to bind to this
   // Optimisation - in the case of the composite iterator
   // public onParentReadable = setReadable.bind(this);
+
+  // protected get [STATE](): number {
+    
+  // }
 
   /**
    * Applies the given mapping to the source iterator.
@@ -73,3 +77,5 @@ export abstract class SynchronousTransformIterator<S, D = S> extends AsyncIterat
 }
 
 SynchronousTransformIterator.prototype[ON_PARENT_READABLE] = setReadable;
+SynchronousTransformIterator.prototype[ON_PARENT_ENDING] = ending;
+

@@ -1,5 +1,5 @@
 import { READABLE } from '../constants';
-import { end } from '../emitters';
+import { end, ending } from '../emitters';
 import { AsyncIterator } from './AsyncIterator';
 
 export class IntegerIterator extends AsyncIterator<number> {
@@ -38,6 +38,10 @@ export class IntegerIterator extends AsyncIterator<number> {
   /* Reads an item from the iterator. */
   read() {
     const { next, step, last } = this;
+
+    if (next === last && step !== 0) {
+      ending.call(this);
+    }
 
     if (step >= 0 ? next > last : next < last) {
       end.call(this);

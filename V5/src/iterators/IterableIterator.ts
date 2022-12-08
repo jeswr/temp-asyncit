@@ -2,6 +2,8 @@ import { READABLE } from "../constants";
 import { end } from "../emitters";
 import { AsyncIterator } from "./AsyncIterator";
 
+// *Note* - we cannot do ending without a lookahead here
+
 export class IterableIterator<T> extends AsyncIterator<T> {
   [READABLE] = true;
 

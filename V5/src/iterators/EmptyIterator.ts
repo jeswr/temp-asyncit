@@ -1,4 +1,4 @@
-import { READABLE } from '../constants';
+import { ENDED, ENDING, READABLE, STATE } from '../constants';
 import { end } from '../emitters';
 import { AsyncIterator } from "./AsyncIterator";
 
@@ -8,6 +8,7 @@ import { AsyncIterator } from "./AsyncIterator";
 */
 export class EmptyIterator<T> extends AsyncIterator<T> {
   [READABLE] = true;
+  [STATE] = ENDING;
 
   read() {
     end.call(this);

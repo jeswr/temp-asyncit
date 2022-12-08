@@ -28,13 +28,15 @@ export const CLOSING = 1 << 2;
 */
 export const CLOSED = 1 << 3;
 
+export const ENDING = 1 << 4
+
 /**
   ID of the ENDED state.
   An iterator has ended if no further items will become available.
   The 'end' event is guaranteed to have been called when in this state.
   @type integer
 */
-export const ENDED = 1 << 4;
+export const ENDED = 1 << 5;
 
 /**
   ID of the DESTROYED state.
@@ -43,4 +45,4 @@ export const ENDED = 1 << 4;
   The 'end' event has not been called, as pending elements were voided.
   @type integer
 */
-export const DESTROYED = 1 << 5;
+export const DESTROYED = 1 << 6;

@@ -12,7 +12,8 @@ import {
   GENERATE_ITEMS,
   CAN_RUN_ITEM_GENERATION,
   PROPERTIES,
-  PROPERTY_CALLBACKS
+  PROPERTY_CALLBACKS,
+  ON_PARENT_ENDING
 } from '../constants';
 import { setReadable, removeListener, newListener, end } from '../emitters';
 import { MapFunction } from '../types';
@@ -38,7 +39,8 @@ export abstract class AsyncIterator<T> extends EventEmitter implements globalThi
   // For optimised chaining of iterators
   protected [DESTINATION]?: AsyncIteratorBase<any>;
   protected [ON_PARENT_READABLE]?(parent: AsyncIteratorBase<any>): void;
-
+  protected [ON_PARENT_ENDING]?(): void;
+  
   // For iterators with asynchronous item generation
   protected [CAN_RUN_ITEM_GENERATION]?: boolean;
   protected [GENERATE_ITEMS]?(): void;

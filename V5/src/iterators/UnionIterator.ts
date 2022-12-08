@@ -1,5 +1,5 @@
 import { AsyncIterator } from "./AsyncIterator";
-import { addSyncErrorForwardingDestination, emitErrorDestination, removeSyncErrorForwardingDestination } from "../utils";
+import { addSyncErrorForwardingDestination, destinationSetError, emitErrorDestination, removeSyncErrorForwardingDestination } from "../utils";
 import { emitError, end } from "../emitters";
 import { ERROR, GENERATE_ITEMS, ON_PARENT_READABLE } from "../constants";
 import { AsyncIteratorBase } from "../types/AsyncIteratorBase";
@@ -8,11 +8,6 @@ import { AsyncIteratorBase } from "../types/AsyncIteratorBase";
 
 // TODO: Exploit the fact that we have access to synchronous readable events to go straight to the iterator
 // that emitted readable.
-
-function setPendingError<T>(this: UnionIterator<T>, error: any) {
-  this[ERROR] = error;
-}
-
 
 // TODO: Bring over performance work from from https://github.com/RubenVerborgh/AsyncIterator/pull/81/files
 /**
@@ -77,7 +72,7 @@ export class UnionIterator<T> extends AsyncIterator<T> {
     if (source) {
       let iterator;
       source.off('error', emitErrorDestination);
-      source.on('error', setPendingError);
+      source.on('error', destinationSetError);
       while (this.live.size < maxParallelIterators && source.readable && (iterator = source.read()) !== null) {
         // TODO: Re-enable this once we have ending states working
         // if (iterator.ending) {
@@ -96,7 +91,7 @@ export class UnionIterator<T> extends AsyncIterator<T> {
           }
         }
       }
-      source.off('error', setPendingError);
+      source.off('error', destinationSetError);
       source.on('error', emitErrorDestination);
     }
 

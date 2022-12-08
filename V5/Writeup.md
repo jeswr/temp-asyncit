@@ -114,3 +114,7 @@ The union iterator is now an iterator that synchronously transforms elements (in
 
 
 For now this does tend to 
+
+TODO: Introduce an on parent ending event
+ON_PARENT_ENDING *must* be called before ON_PARENT_READABLE to ensure that the ending state is set prior to the parent iterator being readable
+

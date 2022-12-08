@@ -1,5 +1,5 @@
 import { STATE } from "../constants";
-import { end } from "../emitters";
+import { end, ending } from "../emitters";
 import { AsyncIterator } from "./AsyncIterator";
 
 /**
@@ -36,6 +36,7 @@ export class ArrayIterator<T> extends AsyncIterator<T> {
         item = this._buffer[this._index++];
       // Close when all elements have been returned
       if (this._index === this._buffer.length) {
+        ending.call(this);
         delete this._buffer;
       }
       // Do need keep old items around indefinitely

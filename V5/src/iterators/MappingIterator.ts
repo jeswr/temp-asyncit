@@ -15,6 +15,8 @@ export class MappingIterator<S, D = S> extends SynchronousTransformIterator<S, D
     super(source);
   }
 
+  
+
   /* Tries to read the next item from the iterator. */
   safeRead(): D | null {
     let item: D | S | null;
